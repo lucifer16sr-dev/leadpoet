@@ -37,6 +37,7 @@ import requests
 import random
 import grpc
 from pathlib import Path
+from smart_miner.submitter import submit_leads_smart
 
 
 class _SilenceInvalidRequest(logging.Filter):
@@ -177,6 +178,18 @@ class Miner(BaseMinerNeuron):
 
     async def sourcing_loop(self, interval: int, miner_hotkey: str):
         print(f"🔄 Starting continuous sourcing loop (interval: {interval}s)")
+
+        # Smart miner controls (env-driven so you can quickly toggle in prod)
+        # Defaults: enabled, threshold=0.7, max_daily_submissions=50 (conservative)
+        use_smart_miner = os.environ.get("USE_SMART_MINER", "1").strip().lower() not in ("0", "false", "no")
+        smart_threshold = float(os.environ.get("SMART_MINER_THRESHOLD", "0.7"))
+        smart_max_daily = int(os.environ.get("SMART_MINER_MAX_DAILY_SUBMISSIONS", "50"))
+
+        if use_smart_miner:
+            print(f"🤖 Smart Miner ENABLED | threshold={smart_threshold} max_daily={smart_max_daily}")
+        else:
+            print("🤖 Smart Miner DISABLED | using legacy submission logic")
+
         while True:
             try:
                 if not self.sourcing_mode:
@@ -201,92 +214,112 @@ class Miner(BaseMinerNeuron):
                     owner = lead.get('full_name', 'Unknown')
                     email = lead.get('email', 'No email')
                     print(f"  {i}. {business} - {owner} ({email})")
-                
-                # Submit leads via gateway (Passage 1 workflow)
-                try:
-                    from Leadpoet.utils.cloud_db import (
-                        check_email_duplicate,
-                        gateway_get_presigned_url,
-                        gateway_upload_lead,
-                        gateway_verify_submission
-                    )
-                    
-                    submitted_count = 0
-                    verified_count = 0
-                    duplicate_count = 0
-                    
-                    for lead in sanitized:
-                        business_name = lead.get('business', 'Unknown')
-                        email = lead.get('email', '')
-                        linkedin_url = lead.get('linkedin', '')
-                        company_linkedin_url = lead.get('company_linkedin', '')
-                        
-                        # Step 0: Check for duplicates BEFORE calling presign (saves time & rate limit)
-                        # Check both email AND linkedin combo (person+company)
-                        
-                        # Check email duplicate (approved or processing = skip, rejected = allow)
-                        if check_email_duplicate(email):
-                            print(f"⏭️  Skipping duplicate email: {business_name} ({email})")
-                            duplicate_count += 1
-                            continue
-                        
-                        # Check linkedin combo duplicate (same logic: approved/processing = skip, rejected = allow)
-                        if linkedin_url and company_linkedin_url:
-                            if check_linkedin_combo_duplicate(linkedin_url, company_linkedin_url):
-                                print(f"⏭️  Skipping duplicate person+company: {business_name}")
-                                print(f"      LinkedIn: {linkedin_url[:50]}...")
-                                print(f"      Company: {company_linkedin_url[:50]}...")
-                            duplicate_count += 1
-                            continue
-                        
-                        # Step 1: Get presigned URLs (gateway logs SUBMISSION_REQUEST with committed hash)
-                        presign_result = gateway_get_presigned_url(self.wallet, lead)
-                        if not presign_result:
-                            print(f"⚠️  Failed to get presigned URL for {business_name}")
-                            continue
-                        
-                        # Step 2: Upload to S3 (gateway will mirror to MinIO automatically)
-                        s3_uploaded = gateway_upload_lead(presign_result['s3_url'], lead)
-                        if not s3_uploaded:
-                            print(f"⚠️  Failed to upload to S3: {business_name}")
-                            continue
-                        
-                        print(f"✅ Lead uploaded to S3 (gateway will mirror to MinIO)")
-                        submitted_count += 1
-                        
-                        # Step 4: Trigger gateway verification (BRD Section 4.1, Steps 5-6)
-                        # Gateway will:
-                        # - Fetch uploaded blobs from S3/MinIO
-                        # - Verify hashes match committed lead_blob_hash
-                        # - Log STORAGE_PROOF events (one per mirror)
-                        # - Store lead in leads_private table
-                        # - Log SUBMISSION event
-                        verification_result = gateway_verify_submission(
-                            self.wallet,
-                            presign_result['lead_id']
+
+                # Submit leads (Smart Miner pipeline OR legacy fallback)
+                if use_smart_miner:
+                    try:
+                        # Smart miner submission:
+                        # - scores each lead (email/domain/company/source)
+                        # - validates SN71 schema rules before submission
+                        # - checks duplicates (external) before submission
+                        # - submits via gateway (presign/upload/verify)
+                        res = await submit_leads_smart(
+                            leads=sanitized,
+                            wallet=self.wallet,
+                            min_score_threshold=smart_threshold,
+                            max_daily_submissions=smart_max_daily,
+                            dry_run=False,
+                            skip_duplicate_check=False,
+                            check_reachability=True,
+                            use_gateway_checks=True,
                         )
-                        
-                        if verification_result:
-                            verified_count += 1
-                            print(f"✅ Verified: {business_name} (backends: {verification_result['storage_backends']})")
-                        else:
-                            print(f"⚠️  Verification failed: {business_name}")
-                    
-                    if verified_count > 0:
                         print(
-                            f"✅ Successfully submitted and verified {verified_count}/{len(sanitized)} leads "
-                            f"at {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+                            f"🤖 Smart Miner batch: submitted={res.get('submitted', 0)} "
+                            f"rejected={res.get('rejected', 0)} skipped={res.get('skipped', 0)}"
                         )
-                        if duplicate_count > 0:
-                            print(f"   ⏭️  Skipped {duplicate_count} duplicate(s)")
-                    elif submitted_count > 0:
-                        print(f"⚠️  {submitted_count} lead(s) rejected by gateway (see error details above)")
-                    elif duplicate_count > 0:
-                        print(f"⏭️  All {duplicate_count} lead(s) were duplicates (already submitted)")
-                    else:
-                        print("⚠️  Failed to submit any leads via gateway")
-                except Exception as e:
-                    print(f"❌ Gateway submission exception: {e}")
+                    except Exception as e:
+                        print(f"❌ Smart Miner submission exception: {e}")
+                else:
+                    # Legacy submission logic (unchanged behavior) if smart miner disabled
+                    try:
+                        from Leadpoet.utils.cloud_db import (
+                            check_email_duplicate,
+                            gateway_get_presigned_url,
+                            gateway_upload_lead,
+                            gateway_verify_submission
+                        )
+                        
+                        submitted_count = 0
+                        verified_count = 0
+                        duplicate_count = 0
+                        
+                        for lead in sanitized:
+                            business_name = lead.get('business', 'Unknown')
+                            email = lead.get('email', '')
+                            linkedin_url = lead.get('linkedin', '')
+                            company_linkedin_url = lead.get('company_linkedin', '')
+                            
+                            # Step 0: Check for duplicates BEFORE calling presign (saves time & rate limit)
+                            # Check both email AND linkedin combo (person+company)
+                            
+                            # Check email duplicate (approved or processing = skip, rejected = allow)
+                            if check_email_duplicate(email):
+                                print(f"⏭️  Skipping duplicate email: {business_name} ({email})")
+                                duplicate_count += 1
+                                continue
+                            
+                            # Check linkedin combo duplicate (same logic: approved/processing = skip, rejected = allow)
+                            if linkedin_url and company_linkedin_url:
+                                if check_linkedin_combo_duplicate(linkedin_url, company_linkedin_url):
+                                    print(f"⏭️  Skipping duplicate person+company: {business_name}")
+                                    print(f"      LinkedIn: {linkedin_url[:50]}...")
+                                    print(f"      Company: {company_linkedin_url[:50]}...")
+                                duplicate_count += 1
+                                continue
+                            
+                            # Step 1: Get presigned URLs (gateway logs SUBMISSION_REQUEST with committed hash)
+                            presign_result = gateway_get_presigned_url(self.wallet, lead)
+                            if not presign_result:
+                                print(f"⚠️  Failed to get presigned URL for {business_name}")
+                                continue
+                            
+                            # Step 2: Upload to S3 (gateway will mirror to MinIO automatically)
+                            s3_uploaded = gateway_upload_lead(presign_result['s3_url'], lead)
+                            if not s3_uploaded:
+                                print(f"⚠️  Failed to upload to S3: {business_name}")
+                                continue
+                            
+                            print(f"✅ Lead uploaded to S3 (gateway will mirror to MinIO)")
+                            submitted_count += 1
+                            
+                            # Step 4: Trigger gateway verification (BRD Section 4.1, Steps 5-6)
+                            verification_result = gateway_verify_submission(
+                                self.wallet,
+                                presign_result['lead_id']
+                            )
+                            
+                            if verification_result:
+                                verified_count += 1
+                                print(f"✅ Verified: {business_name} (backends: {verification_result['storage_backends']})")
+                            else:
+                                print(f"⚠️  Verification failed: {business_name}")
+                        
+                        if verified_count > 0:
+                            print(
+                                f"✅ Successfully submitted and verified {verified_count}/{len(sanitized)} leads "
+                                f"at {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+                            )
+                            if duplicate_count > 0:
+                                print(f"   ⏭️  Skipped {duplicate_count} duplicate(s)")
+                        elif submitted_count > 0:
+                            print(f"⚠️  {submitted_count} lead(s) rejected by gateway (see error details above)")
+                        elif duplicate_count > 0:
+                            print(f"⏭️  All {duplicate_count} lead(s) were duplicates (already submitted)")
+                        else:
+                            print("⚠️  Failed to submit any leads via gateway")
+                    except Exception as e:
+                        print(f"❌ Gateway submission exception: {e}")
+
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 print("🛑 Sourcing task cancelled")
