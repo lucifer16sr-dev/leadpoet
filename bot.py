@@ -288,9 +288,9 @@ async def analyze_lead_scoring(lead: Dict, threshold: float = 0.7, check_reachab
     if email and (first or last or full_name):
         from smart_miner.lead_scorer import check_name_email_match, extract_name_parts
         first_part, last_part = extract_name_parts(full_name, first, last)
-        name_match, match_score, matched_pattern = check_name_email_match(email, first_part, last_part, full_name)
+        name_match, match_score = check_name_email_match(email, first_part, last_part, full_name)
         if name_match:
-            print(f"    {Colors.GREEN}✓ Name-email match detected (pattern: {matched_pattern}, confidence: {match_score:.2f}){Colors.RESET}")
+            print(f"    {Colors.GREEN}✓ Name-email match detected (confidence: {match_score:.2f}){Colors.RESET}")
         else:
             print(f"    {Colors.YELLOW}⚠ No name-email pattern match found{Colors.RESET}")
     
