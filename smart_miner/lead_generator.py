@@ -54,10 +54,21 @@ async def generate_high_quality_leads(
             for lead in leads:
                 # Basic quality checks
                 if lead.get('email') and lead.get('business'):
-                    # Ensure source_url is not LinkedIn
-                    source_url = lead.get('source_url', lead.get('Website', ''))
-                    if source_url and 'linkedin.com' not in source_url.lower():
-                        quality_leads.append(lead)
+                    # Get source_url - use website as fallback if source_url not set
+                    source_url = lead.get('source_url') or lead.get('website') or lead.get('Website', '')
+                    
+                    # If no source_url at all but website exists, use website as source_url
+                    # This handles leads from company sites where website is the source
+                    if not lead.get('source_url') and lead.get('website'):
+                        lead['source_url'] = lead.get('website')
+                        source_url = lead.get('website')
+                    
+                    # Reject only if source_url exists AND is LinkedIn
+                    # Allow leads without source_url (they'll be validated later)
+                    if source_url and 'linkedin.com' in source_url.lower():
+                        continue  # Skip LinkedIn sources
+                    
+                    quality_leads.append(lead)
                 
                 if len(quality_leads) >= num_leads:
                     break

@@ -591,8 +591,11 @@ async def main():
         if not leads:
             print("⚠️  No leads generated. Possible reasons:")
             print("   - No matching companies found")
-            print("   - All leads filtered out (no email/business name)")
+            print("   - All leads filtered out (no email/business name or invalid source_url)")
             print("   - API rate limits or errors")
+            print("\n💡 Debug: Check if Lead Sorcerer produced leads but they were filtered.")
+            print("   Try running: python drytest_scraping.py --num-leads 1")
+            print("   to see raw Lead Sorcerer output.")
             return 1
         
         print(f"✅ Generated {len(leads)} leads in {elapsed_time:.2f} seconds")
