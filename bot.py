@@ -121,6 +121,137 @@ def print_criterion(name: str, passed: bool, details: str, score: float = None):
         print(f"{indent}{details}")
 
 
+def print_lead_data(lead: Dict, index: int):
+    """Print full generated lead data in a readable format."""
+    print_section(f"📋 GENERATED LEAD DATA #{index}")
+    
+    # Basic Info
+    print(f"\n{Colors.BOLD}Basic Information:{Colors.RESET}")
+    print(f"  Business:      {lead.get('business', 'N/A')}")
+    print(f"  Full Name:     {lead.get('full_name', 'N/A')}")
+    print(f"  First Name:    {lead.get('first', 'N/A')}")
+    print(f"  Last Name:     {lead.get('last', 'N/A')}")
+    print(f"  Email:         {lead.get('email', 'N/A')}")
+    print(f"  Role:          {lead.get('role', 'N/A')}")
+    
+    # Location
+    print(f"\n{Colors.BOLD}Location:{Colors.RESET}")
+    print(f"  Country:       {lead.get('country', 'N/A')}")
+    print(f"  State:         {lead.get('state', 'N/A')}")
+    print(f"  City:          {lead.get('city', 'N/A')}")
+    
+    # Company Details
+    print(f"\n{Colors.BOLD}Company Details:{Colors.RESET}")
+    print(f"  Website:       {lead.get('website', 'N/A')}")
+    print(f"  Industry:      {lead.get('industry', 'N/A')}")
+    print(f"  Sub-Industry:  {lead.get('sub_industry', 'N/A')}")
+    print(f"  Employee Count: {lead.get('employee_count', 'N/A')}")
+    
+    # LinkedIn
+    print(f"\n{Colors.BOLD}LinkedIn:{Colors.RESET}")
+    print(f"  Person LI:     {lead.get('linkedin', 'N/A')}")
+    print(f"  Company LI:    {lead.get('company_linkedin', 'N/A')}")
+    
+    # Source
+    print(f"\n{Colors.BOLD}Source:{Colors.RESET}")
+    print(f"  Source URL:    {lead.get('source_url', 'N/A')}")
+    print(f"  Source Type:   {lead.get('source_type', 'N/A')}")
+    
+    # Description
+    description = lead.get('description', '')
+    if description:
+        desc_preview = description[:200] + '...' if len(description) > 200 else description
+        print(f"\n{Colors.BOLD}Description:{Colors.RESET}")
+        print(f"  {desc_preview}")
+    
+    # Additional Fields
+    additional_fields = []
+    if lead.get('phone'):
+        additional_fields.append(('Phone', lead.get('phone')))
+    if lead.get('twitter'):
+        additional_fields.append(('Twitter', lead.get('twitter')))
+    if lead.get('github'):
+        additional_fields.append(('GitHub', lead.get('github')))
+    if lead.get('telegram'):
+        additional_fields.append(('Telegram', lead.get('telegram')))
+    
+    if additional_fields:
+        print(f"\n{Colors.BOLD}Additional Fields:{Colors.RESET}")
+        for field_name, field_value in additional_fields:
+            print(f"  {field_name}: {field_value}")
+    
+    # Show full JSON on request or for debugging
+    print(f"\n{Colors.CYAN}Full JSON (for debugging):{Colors.RESET}")
+    print(json.dumps(lead, indent=2, ensure_ascii=False))
+
+
+def print_lead_data(lead: Dict, index: int):
+    """Print full generated lead data in a readable format."""
+    print(f"\n{Colors.BOLD}{'─' * 80}{Colors.RESET}")
+    print(f"{Colors.BOLD}📋 GENERATED LEAD #{index}{Colors.RESET}")
+    print(f"{Colors.BOLD}{'─' * 80}{Colors.RESET}")
+    
+    # Basic Info
+    print(f"\n{Colors.CYAN}Basic Information:{Colors.RESET}")
+    print(f"  Business:      {lead.get('business', 'N/A')}")
+    print(f"  Full Name:     {lead.get('full_name', 'N/A')}")
+    print(f"  First Name:    {lead.get('first', 'N/A')}")
+    print(f"  Last Name:     {lead.get('last', 'N/A')}")
+    print(f"  Email:         {lead.get('email', 'N/A')}")
+    print(f"  Role:          {lead.get('role', 'N/A')}")
+    
+    # Location
+    print(f"\n{Colors.CYAN}Location:{Colors.RESET}")
+    print(f"  Country:       {lead.get('country', 'N/A')}")
+    print(f"  State:         {lead.get('state', 'N/A')}")
+    print(f"  City:          {lead.get('city', 'N/A')}")
+    
+    # Company Details
+    print(f"\n{Colors.CYAN}Company Details:{Colors.RESET}")
+    print(f"  Website:       {lead.get('website', 'N/A')}")
+    print(f"  Industry:      {lead.get('industry', 'N/A')}")
+    print(f"  Sub-Industry: {lead.get('sub_industry', 'N/A')}")
+    print(f"  Employee Count: {lead.get('employee_count', 'N/A')}")
+    
+    # LinkedIn
+    print(f"\n{Colors.CYAN}LinkedIn:{Colors.RESET}")
+    print(f"  Person LI:     {lead.get('linkedin', 'N/A')}")
+    print(f"  Company LI:    {lead.get('company_linkedin', 'N/A')}")
+    
+    # Source
+    print(f"\n{Colors.CYAN}Source:{Colors.RESET}")
+    print(f"  Source URL:    {lead.get('source_url', 'N/A')}")
+    print(f"  Source Type:   {lead.get('source_type', 'N/A')}")
+    
+    # Description
+    description = lead.get('description', '')
+    if description:
+        print(f"\n{Colors.CYAN}Description:{Colors.RESET}")
+        # Show first 300 chars, then full in JSON
+        desc_preview = description[:300] + '...' if len(description) > 300 else description
+        print(f"  {desc_preview}")
+    
+    # Additional Fields
+    additional_fields = []
+    if lead.get('phone'):
+        additional_fields.append(('Phone', lead.get('phone')))
+    if lead.get('twitter'):
+        additional_fields.append(('Twitter', lead.get('twitter')))
+    if lead.get('github'):
+        additional_fields.append(('GitHub', lead.get('github')))
+    if lead.get('telegram'):
+        additional_fields.append(('Telegram', lead.get('telegram')))
+    
+    if additional_fields:
+        print(f"\n{Colors.CYAN}Additional Fields:{Colors.RESET}")
+        for field_name, field_value in additional_fields:
+            print(f"  {field_name}: {field_value}")
+    
+    # Show full JSON for complete data
+    print(f"\n{Colors.MAGENTA}Full JSON Data:{Colors.RESET}")
+    print(json.dumps(lead, indent=2, ensure_ascii=False))
+
+
 def print_lead_header(lead: Dict, index: int):
     """Print lead header with basic info."""
     business = lead.get('business', 'Unknown')
@@ -467,7 +598,13 @@ async def main():
         print(f"✅ Generated {len(leads)} leads in {elapsed_time:.2f} seconds")
         print()
         
-        # Step 2: Analyze each lead
+        # Step 2: Log all generated leads first
+        print_section("📋 ALL GENERATED LEADS")
+        for i, lead in enumerate(leads, 1):
+            print_lead_data(lead, i)
+        
+        # Step 3: Analyze each lead
+        print_header("🔍 ANALYZING LEADS", "=")
         results = []
         
         for i, lead in enumerate(leads, 1):
