@@ -25,6 +25,10 @@ import os
 from datetime import datetime
 from typing import Dict, List, Any, Tuple
 import json
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Force UTF-8 encoding for Windows terminals
 if sys.platform == "win32":
